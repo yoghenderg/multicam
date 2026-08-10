@@ -108,9 +108,9 @@ button:disabled {
 .result-frame {
   position: relative;
   align-self: center;
-  width: min(100%, 38vh, 340px);
+  width: min(100%, 1080px);
+  aspect-ratio: 1080 / 1920;
   max-height: calc(100vh - 285px);
-  aspect-ratio: 6 / 19;
   overflow: hidden;
   border: 10px solid #111615;
   border-radius: 8px;
@@ -239,14 +239,14 @@ select {
 }
 
 .result-frame {
-  width: min(100%, 42vh, 380px);
+  width: min(100%, 1080px);
   max-height: calc(100vh - 185px);
 }
 
 @media (max-width: 1023px) {
   .viewfinder-frame {
-    width: min(43vw, 300px);
-    max-height: 64vh;
+    width: min(100%, 720px);
+    max-height: 72vh;
   }
 }
 
@@ -260,7 +260,7 @@ select {
   }
 
   .viewfinder-frame {
-    width: min(86vw, 260px);
+    width: min(100%, 100vw);
     max-height: none;
   }
 }

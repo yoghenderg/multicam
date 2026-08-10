@@ -8,8 +8,8 @@ type SlotSettings = {
   mirrored: boolean;
 };
 
-const OUTPUT_WIDTH = 360;
-const OUTPUT_HEIGHT = 1140;
+const OUTPUT_WIDTH = 1080;
+const OUTPUT_HEIGHT = 1920;
 const ROTATIONS: SlotSettings["rotation"][] = [0, 90, 180, 270];
 
 function stopStream(stream: MediaStream | null) {
