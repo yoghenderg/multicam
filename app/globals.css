@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f1ea;
+  --foreground: #1b1d1f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.primary-button,
+.secondary-button,
+.capture-button {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0 16px;
+  font-weight: 700;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.primary-button,
+.capture-button {
+  background: #173c31;
+  color: #fffaf0;
+}
+
+.secondary-button {
+  border-color: #173c31;
+  background: transparent;
+  color: #173c31;
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.capture-button:hover {
+  transform: translateY(-1px);
+}
+
+.camera-section,
+.result-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 2px solid #1f2b27;
+  padding-top: 14px;
+}
+
+.section-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-top h2,
+.result-section h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+  line-height: 1.1;
+}
+
+.section-top p {
+  margin: 4px 0 0;
+  color: #5b625f;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.viewfinder-frame,
+.result-frame {
+  position: relative;
+  align-self: center;
+  width: min(100%, 38vh, 340px);
+  max-height: calc(100vh - 285px);
+  aspect-ratio: 6 / 19;
+  overflow: hidden;
+  border: 10px solid #111615;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 40%),
+    #222826;
+  box-shadow: 0 18px 38px rgba(36, 33, 27, 0.22);
+}
+
+.viewfinder-frame video,
+.result-frame img,
+.result-frame video {
+  display: block;
+  object-fit: cover;
+}
+
+.viewfinder-frame video {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  transform-origin: center;
+}
+
+.viewfinder-frame video.rotated {
+  width: 316.6667%;
+  height: 31.5789%;
+}
+
+.result-frame img,
+.result-frame video {
+  width: 100%;
+  height: 100%;
+}
+
+.viewfinder-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  color: white;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.72);
+}
+
+.viewfinder-overlay span {
+  border-radius: 999px;
+  background: rgba(5, 8, 7, 0.42);
+  padding: 5px 8px;
+}
+
+.record-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  background: #d54d36;
+  transition: width 120ms linear;
+}
+
+.controls-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.controls-grid label,
+.control-group {
+  display: grid;
+  gap: 7px;
+}
+
+.controls-grid span {
+  color: #4b524e;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+select {
+  min-height: 42px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #b9b5a8;
+  border-radius: 8px;
+  background: #fffdf5;
+  color: #1e2321;
+  padding: 0 12px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  min-height: 42px;
+  overflow: hidden;
+  border: 1px solid #b9b5a8;
+  border-radius: 8px;
+  background: #b9b5a8;
+}
+
+.segmented.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.segmented button {
+  min-width: 0;
+  border: 0;
+  background: #fffdf5;
+  color: #1e2321;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: #d7ead9;
+  color: #173c31;
+}
+
+.result-section {
+  min-height: 0;
+}
+
+.result-frame {
+  width: min(100%, 42vh, 380px);
+  max-height: calc(100vh - 185px);
+}
+
+@media (max-width: 1023px) {
+  .viewfinder-frame {
+    width: min(43vw, 300px);
+    max-height: 64vh;
+  }
+}
+
+@media (max-width: 680px) {
+  .section-top {
+    grid-template-columns: 1fr;
+  }
+
+  .capture-button {
+    width: 100%;
+  }
+
+  .viewfinder-frame {
+    width: min(86vw, 260px);
+    max-height: none;
+  }
+}
