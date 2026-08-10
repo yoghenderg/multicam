@@ -270,7 +270,6 @@ function CameraPanel({
       <div className="viewfinder-frame" aria-label={`${title} 6 by 19 portrait viewfinder`}>
         <video
           autoPlay
-          className={settings.rotation === 90 || settings.rotation === 270 ? "rotated" : ""}
           muted
           playsInline
           ref={videoRef}

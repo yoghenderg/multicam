@@ -136,11 +136,6 @@ button:disabled {
   transform-origin: center;
 }
 
-.viewfinder-frame video.rotated {
-  width: 316.6667%;
-  height: 31.5789%;
-}
-
 .result-frame img,
 .result-frame video {
   width: 100%;
