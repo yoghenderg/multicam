@@ -62,6 +62,22 @@ function createOutputCanvas() {
   return canvas;
 }
 
+function chooseSecondaryDeviceId(
+  devices: MediaDeviceInfo[],
+  primaryDeviceId: string,
+  currentSecondaryDeviceId: string,
+) {
+  const candidates = devices
+    .map((device) => device.deviceId)
+    .filter((deviceId) => deviceId !== primaryDeviceId);
+
+  if (currentSecondaryDeviceId && candidates.includes(currentSecondaryDeviceId)) {
+    return currentSecondaryDeviceId;
+  }
+
+  return candidates[0] || primaryDeviceId || "";
+}
+
 export default function Home() {
   const videoARef = useRef<HTMLVideoElement>(null);
   const videoBRef = useRef<HTMLVideoElement>(null);
@@ -97,15 +113,14 @@ export default function Home() {
     setSettings((current) => ({
       a: {
         ...current.a,
-        deviceId: current.a.deviceId || videoDevices[0]?.deviceId || "",
+        deviceId:
+          current.a.deviceId && videoDevices.some((device) => device.deviceId === current.a.deviceId)
+            ? current.a.deviceId
+            : videoDevices[0]?.deviceId || "",
       },
       b: {
         ...current.b,
-        deviceId:
-          current.b.deviceId ||
-          videoDevices[1]?.deviceId ||
-          videoDevices[0]?.deviceId ||
-          "",
+        deviceId: chooseSecondaryDeviceId(videoDevices, current.a.deviceId, current.b.deviceId),
       },
     }));
 
@@ -142,12 +157,11 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    const deviceId = settings.a.deviceId;
+    const videoElement = videoARef.current;
+    if (!deviceId || !videoElement) return;
 
-    async function openStream(slot: Slot) {
-      const deviceId = settings[slot].deviceId;
-      const videoElement = slot === "a" ? videoARef.current : videoBRef.current;
-      if (!deviceId || !videoElement) return;
-
+    async function openStream() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -164,23 +178,62 @@ export default function Home() {
         }
 
         setStreams((current) => {
-          stopStream(current[slot]);
-          return { ...current, [slot]: stream };
+          if (current.a && current.a !== stream) stopStream(current.a);
+          return { ...current, a: stream };
         });
         videoElement.srcObject = stream;
         await videoElement.play();
       } catch {
-        setStatus(`Could not open Camera ${slot.toUpperCase()}. Choose another device or refresh.`);
+        setStatus("Could not open Camera A. Choose another device or refresh.");
       }
     }
 
-    openStream("a");
-    openStream("b");
+    openStream();
 
     return () => {
       cancelled = true;
     };
-  }, [settings.a.deviceId, settings.b.deviceId]);
+  }, [settings.a.deviceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const deviceId = settings.b.deviceId;
+    const videoElement = videoBRef.current;
+    if (!deviceId || !videoElement) return;
+
+    async function openStream() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            deviceId: { exact: deviceId },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+          },
+        });
+
+        if (cancelled) {
+          stopStream(stream);
+          return;
+        }
+
+        setStreams((current) => {
+          if (current.b && current.b !== stream) stopStream(current.b);
+          return { ...current, b: stream };
+        });
+        videoElement.srcObject = stream;
+        await videoElement.play();
+      } catch {
+        setStatus("Could not open Camera B. Choose another device or refresh.");
+      }
+    }
+
+    openStream();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.b.deviceId]);
 
   useEffect(
     () => () => {
@@ -199,17 +252,39 @@ export default function Home() {
   }, [photoUrl, videoUrl]);
 
   function updateSlot(slot: Slot, nextSettings: Partial<SlotSettings>) {
-    setSettings((current) => ({
-      ...current,
-      [slot]: { ...current[slot], ...nextSettings },
-    }));
+    setSettings((current) => {
+      const next = { ...current, [slot]: { ...current[slot], ...nextSettings } };
+
+      if (nextSettings.deviceId) {
+        const otherSlot = slot === "a" ? "b" : "a";
+        const otherUsesSameDevice = next[otherSlot].deviceId === nextSettings.deviceId;
+
+        if (otherUsesSameDevice) {
+          const fallbackDevice = devices.find(
+            (device) => device.deviceId !== nextSettings.deviceId,
+          )?.deviceId;
+
+          next[otherSlot] = {
+            ...next[otherSlot],
+            deviceId: fallbackDevice || next[otherSlot].deviceId,
+          };
+        }
+      }
+
+      return next;
+    });
   }
 
   function exchangeCameras() {
-    setSettings((current) => ({
-      a: { ...current.a, deviceId: current.b.deviceId },
-      b: { ...current.b, deviceId: current.a.deviceId },
-    }));
+    setSettings((current) => {
+      const swappedA = current.b.deviceId;
+      const swappedB = current.a.deviceId;
+
+      return {
+        a: { ...current.a, deviceId: swappedA },
+        b: { ...current.b, deviceId: swappedB },
+      };
+    });
   }
 
   function capturePhoto() {
