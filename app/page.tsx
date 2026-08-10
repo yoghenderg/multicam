@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type Slot = "a" | "b";
-
 type SlotSettings = {
   deviceId: string;
   rotation: 0 | 90 | 180 | 270;
@@ -62,40 +60,17 @@ function createOutputCanvas() {
   return canvas;
 }
 
-function chooseSecondaryDeviceId(
-  devices: MediaDeviceInfo[],
-  primaryDeviceId: string,
-  currentSecondaryDeviceId: string,
-) {
-  const candidates = devices
-    .map((device) => device.deviceId)
-    .filter((deviceId) => deviceId !== primaryDeviceId);
-
-  if (currentSecondaryDeviceId && candidates.includes(currentSecondaryDeviceId)) {
-    return currentSecondaryDeviceId;
-  }
-
-  return candidates[0] || primaryDeviceId || "";
-}
-
 export default function Home() {
   const videoARef = useRef<HTMLVideoElement>(null);
-  const videoBRef = useRef<HTMLVideoElement>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [settings, setSettings] = useState<Record<Slot, SlotSettings>>({
-    a: { deviceId: "", rotation: 0, mirrored: false },
-    b: { deviceId: "", rotation: 0, mirrored: false },
+  const [settings, setSettings] = useState<SlotSettings>({
+    deviceId: "",
+    rotation: 0,
+    mirrored: false,
   });
-  const [streams, setStreams] = useState<Record<Slot, MediaStream | null>>({
-    a: null,
-    b: null,
-  });
-  const [status, setStatus] = useState("Allow camera access to detect both webcams.");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [status, setStatus] = useState("Allow camera access to detect the webcam.");
   const [photoUrl, setPhotoUrl] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingProgress, setRecordingProgress] = useState(0);
-  const [view, setView] = useState<"capture" | "result">("capture");
 
   const deviceOptions = useMemo(
     () =>
@@ -111,23 +86,15 @@ export default function Home() {
     const videoDevices = allDevices.filter((device) => device.kind === "videoinput");
     setDevices(videoDevices);
     setSettings((current) => ({
-      a: {
-        ...current.a,
-        deviceId:
-          current.a.deviceId && videoDevices.some((device) => device.deviceId === current.a.deviceId)
-            ? current.a.deviceId
-            : videoDevices[0]?.deviceId || "",
-      },
-      b: {
-        ...current.b,
-        deviceId: chooseSecondaryDeviceId(videoDevices, current.a.deviceId, current.b.deviceId),
-      },
+      ...current,
+      deviceId:
+        current.deviceId && videoDevices.some((device) => device.deviceId === current.deviceId)
+          ? current.deviceId
+          : videoDevices[0]?.deviceId || "",
     }));
 
-    if (videoDevices.length >= 2) {
-      setStatus("Two webcams detected. Capture A as a photo and B as a 5-second video.");
-    } else if (videoDevices.length === 1) {
-      setStatus("One webcam detected. Connect another webcam, then refresh cameras.");
+    if (videoDevices.length >= 1) {
+      setStatus("Webcam detected. Choose a device, then capture a photo.");
     } else {
       setStatus("No webcam detected yet. Check browser permissions and camera connection.");
     }
@@ -157,13 +124,13 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    const deviceId = settings.a.deviceId;
+    const deviceId = settings.deviceId;
     const videoElement = videoARef.current;
     if (!deviceId || !videoElement) return;
 
     async function openStream() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const nextStream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
             deviceId: { exact: deviceId },
@@ -173,18 +140,18 @@ export default function Home() {
         });
 
         if (cancelled) {
-          stopStream(stream);
+          stopStream(nextStream);
           return;
         }
 
-        setStreams((current) => {
-          if (current.a && current.a !== stream) stopStream(current.a);
-          return { ...current, a: stream };
+        setStream((current) => {
+          if (current && current !== nextStream) stopStream(current);
+          return nextStream;
         });
-        videoElement.srcObject = stream;
+        videoElement.srcObject = nextStream;
         await videoElement.play();
       } catch {
-        setStatus("Could not open Camera A. Choose another device or refresh.");
+        setStatus("Could not open the selected camera. Choose another device or refresh.");
       }
     }
 
@@ -193,98 +160,18 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [settings.a.deviceId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const deviceId = settings.b.deviceId;
-    const videoElement = videoBRef.current;
-    if (!deviceId || !videoElement) return;
-
-    async function openStream() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            deviceId: { exact: deviceId },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-          },
-        });
-
-        if (cancelled) {
-          stopStream(stream);
-          return;
-        }
-
-        setStreams((current) => {
-          if (current.b && current.b !== stream) stopStream(current.b);
-          return { ...current, b: stream };
-        });
-        videoElement.srcObject = stream;
-        await videoElement.play();
-      } catch {
-        setStatus("Could not open Camera B. Choose another device or refresh.");
-      }
-    }
-
-    openStream();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [settings.b.deviceId]);
+  }, [settings.deviceId]);
 
   useEffect(
     () => () => {
-      stopStream(streams.a);
-      stopStream(streams.b);
+      stopStream(stream);
       if (photoUrl) URL.revokeObjectURL(photoUrl);
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
     },
-    [streams.a, streams.b, photoUrl, videoUrl],
+    [stream, photoUrl],
   );
 
-  useEffect(() => {
-    if (photoUrl && videoUrl) {
-      setView("result");
-    }
-  }, [photoUrl, videoUrl]);
-
-  function updateSlot(slot: Slot, nextSettings: Partial<SlotSettings>) {
-    setSettings((current) => {
-      const next = { ...current, [slot]: { ...current[slot], ...nextSettings } };
-
-      if (nextSettings.deviceId) {
-        const otherSlot = slot === "a" ? "b" : "a";
-        const otherUsesSameDevice = next[otherSlot].deviceId === nextSettings.deviceId;
-
-        if (otherUsesSameDevice) {
-          const fallbackDevice = devices.find(
-            (device) => device.deviceId !== nextSettings.deviceId,
-          )?.deviceId;
-
-          next[otherSlot] = {
-            ...next[otherSlot],
-            deviceId: fallbackDevice || next[otherSlot].deviceId,
-          };
-        }
-      }
-
-      return next;
-    });
-  }
-
-  function exchangeCameras() {
-    setSettings((current) => {
-      const swappedA = current.b.deviceId;
-      const swappedB = current.a.deviceId;
-
-      return {
-        a: { ...current.a, deviceId: swappedA },
-        b: { ...current.b, deviceId: swappedB },
-      };
-    });
+  function updateSettings(nextSettings: Partial<SlotSettings>) {
+    setSettings((current) => ({ ...current, ...nextSettings }));
   }
 
   function capturePhoto() {
@@ -311,103 +198,6 @@ export default function Home() {
     );
   }
 
-  function recordVideo() {
-    const video = videoBRef.current;
-    if (!video || !video.videoWidth || isRecording) {
-      setStatus("Camera B is not ready yet.");
-      return;
-    }
-
-    const canvas = createOutputCanvas();
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const canvasStream = canvas.captureStream(30);
-    const chunks: Blob[] = [];
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
-      : "video/webm";
-    const recorder = new MediaRecorder(canvasStream, { mimeType });
-    let animationFrame = 0;
-    let timer = 0;
-
-    const draw = () => {
-      drawFittedVideo(context, video, settings.b);
-      animationFrame = requestAnimationFrame(draw);
-    };
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size) chunks.push(event.data);
-    };
-
-    recorder.onstop = () => {
-      cancelAnimationFrame(animationFrame);
-      window.clearInterval(timer);
-      canvasStream.getTracks().forEach((track) => track.stop());
-      const blob = new Blob(chunks, { type: mimeType });
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
-      setVideoUrl(URL.createObjectURL(blob));
-      setIsRecording(false);
-      setRecordingProgress(5);
-      setStatus("Video recorded. Review your photo and video.");
-    };
-
-    setIsRecording(true);
-    setRecordingProgress(0);
-    setStatus("Recording Camera B for 5 seconds...");
-    draw();
-    recorder.start();
-
-    const startedAt = Date.now();
-    timer = window.setInterval(() => {
-      const elapsed = Math.min(5, (Date.now() - startedAt) / 1000);
-      setRecordingProgress(elapsed);
-    }, 100);
-
-    window.setTimeout(() => recorder.stop(), 5000);
-  }
-
-  function resetCapture() {
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    setPhotoUrl("");
-    setVideoUrl("");
-    setRecordingProgress(0);
-    setView("capture");
-    setStatus("Ready for another webcam test.");
-  }
-
-  if (view === "result") {
-    return (
-      <main className="min-h-screen bg-[#f4f1ea] text-[#1b1d1f]">
-        <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6 sm:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#242424]/15 pb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#526056]">
-                Review
-              </p>
-              <h1 className="mt-1 text-3xl font-semibold sm:text-4xl">Capture result</h1>
-            </div>
-            <button className="primary-button" onClick={resetCapture}>
-              New test
-            </button>
-          </div>
-
-          <div className="grid flex-1 gap-5 py-6 lg:grid-cols-2">
-            <ResultPanel title="Camera A photo">
-              {photoUrl ? <img alt="Captured from Camera A" src={photoUrl} /> : null}
-            </ResultPanel>
-            <ResultPanel title="Camera B video">
-              {videoUrl ? (
-                <video controls playsInline src={videoUrl} />
-              ) : null}
-            </ResultPanel>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-[#f4f1ea] text-[#1b1d1f]">
       <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6">
@@ -416,18 +206,11 @@ export default function Home() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#526056]">
               Dual webcam portrait tester
             </p>
-            <h1 className="mt-1 text-3xl font-semibold sm:text-5xl">Camera A / Camera B</h1>
+            <h1 className="mt-1 text-3xl font-semibold sm:text-5xl">Camera A</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <button className="secondary-button" onClick={requestAccess}>
               Refresh cameras
-            </button>
-            <button
-              className="primary-button"
-              disabled={!settings.a.deviceId || !settings.b.deviceId}
-              onClick={exchangeCameras}
-            >
-              Exchange A and B
             </button>
           </div>
         </header>
@@ -439,30 +222,15 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid flex-1 gap-5 lg:grid-cols-2">
-          <CameraPanel
-            actionLabel={photoUrl ? "Retake photo" : "Capture photo"}
-            deviceOptions={deviceOptions}
-            kind="photo"
-            onAction={capturePhoto}
-            onChange={updateSlot}
-            settings={settings.a}
-            slot="a"
-            videoRef={videoARef}
-          />
-          <CameraPanel
-            actionLabel={isRecording ? `Recording ${Math.ceil(5 - recordingProgress)}s` : videoUrl ? "Record again" : "Record 5s video"}
-            deviceOptions={deviceOptions}
-            disabled={isRecording}
-            kind="video"
-            onAction={recordVideo}
-            onChange={updateSlot}
-            progress={recordingProgress / 5}
-            settings={settings.b}
-            slot="b"
-            videoRef={videoBRef}
-          />
-        </div>
+        <CameraPanel
+          actionLabel={photoUrl ? "Retake photo" : "Capture photo"}
+          deviceOptions={deviceOptions}
+          kind="photo"
+          onAction={capturePhoto}
+          onChange={updateSettings}
+          settings={settings}
+          videoRef={videoARef}
+        />
       </section>
     </main>
   );
@@ -471,36 +239,30 @@ export default function Home() {
 function CameraPanel({
   actionLabel,
   deviceOptions,
-  disabled = false,
   kind,
   onAction,
   onChange,
-  progress = 0,
   settings,
-  slot,
   videoRef,
 }: {
   actionLabel: string;
   deviceOptions: { id: string; label: string }[];
-  disabled?: boolean;
   kind: "photo" | "video";
   onAction: () => void;
-  onChange: (slot: Slot, settings: Partial<SlotSettings>) => void;
-  progress?: number;
+  onChange: (settings: Partial<SlotSettings>) => void;
   settings: SlotSettings;
-  slot: Slot;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }) {
-  const title = `Camera ${slot.toUpperCase()}`;
+  const title = "Camera A";
 
   return (
     <section className="camera-section">
       <div className="section-top">
         <div>
           <h2>{title}</h2>
-          <p>{kind === "photo" ? "Portrait photo capture" : "5-second portrait video"}</p>
+          <p>{kind === "photo" ? "Portrait photo capture" : "Portrait video preview"}</p>
         </div>
-        <button className="capture-button" disabled={disabled} onClick={onAction}>
+        <button className="capture-button" onClick={onAction}>
           {actionLabel}
         </button>
       </div>
@@ -518,9 +280,6 @@ function CameraPanel({
           <span>{title}</span>
           <span>6:19</span>
         </div>
-        {kind === "video" && progress > 0 ? (
-          <div className="record-progress" style={{ width: `${Math.min(100, progress * 100)}%` }} />
-        ) : null}
       </div>
 
       <div className="controls-grid">
@@ -528,7 +287,7 @@ function CameraPanel({
           <span>Device</span>
           <select
             value={settings.deviceId}
-            onChange={(event) => onChange(slot, { deviceId: event.target.value })}
+            onChange={(event) => onChange({ deviceId: event.target.value })}
           >
             {deviceOptions.length ? (
               deviceOptions.map((device) => (
@@ -549,7 +308,7 @@ function CameraPanel({
               <button
                 aria-pressed={settings.rotation === rotation}
                 key={rotation}
-                onClick={() => onChange(slot, { rotation })}
+                onClick={() => onChange({ rotation })}
                 type="button"
               >
                 {rotation}°
@@ -563,14 +322,14 @@ function CameraPanel({
           <div className="segmented two">
             <button
               aria-pressed={settings.mirrored}
-              onClick={() => onChange(slot, { mirrored: true })}
+              onClick={() => onChange({ mirrored: true })}
               type="button"
             >
               Mirror
             </button>
             <button
               aria-pressed={!settings.mirrored}
-              onClick={() => onChange(slot, { mirrored: false })}
+              onClick={() => onChange({ mirrored: false })}
               type="button"
             >
               No mirror
@@ -578,15 +337,6 @@ function CameraPanel({
           </div>
         </div>
       </div>
-    </section>
-  );
-}
-
-function ResultPanel({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <section className="result-section">
-      <h2>{title}</h2>
-      <div className="result-frame">{children}</div>
     </section>
   );
 }
