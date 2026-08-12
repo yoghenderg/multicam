@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dual Webcam Portrait Tester",
-  description: "Test two browser webcams with portrait capture, rotation, mirror controls, and device exchange.",
+  title: "Webcam Landscape Tester",
+  description: "Test a browser webcam with landscape capture, rotation, mirror controls, and device selection.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

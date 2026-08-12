@@ -108,8 +108,8 @@ button:disabled {
 .result-frame {
   position: relative;
   align-self: center;
-  width: min(100%, 1080px);
-  aspect-ratio: 1080 / 1920;
+  width: min(100%, 1280px);
+  aspect-ratio: 16 / 9;
   max-height: calc(100vh - 285px);
   overflow: hidden;
   border: 10px solid #111615;
@@ -233,13 +233,13 @@ select {
 }
 
 .result-frame {
-  width: min(100%, 1080px);
+  width: min(100%, 1280px);
   max-height: calc(100vh - 185px);
 }
 
 @media (max-width: 1023px) {
   .viewfinder-frame {
-    width: min(100%, 720px);
+    width: min(100%, 900px);
     max-height: 72vh;
   }
 }

@@ -8,8 +8,8 @@ type SlotSettings = {
   mirrored: boolean;
 };
 
-const OUTPUT_WIDTH = 1080;
-const OUTPUT_HEIGHT = 1920;
+const OUTPUT_WIDTH = 1920;
+const OUTPUT_HEIGHT = 1080;
 const ROTATIONS: SlotSettings["rotation"][] = [0, 90, 180, 270];
 
 function stopStream(stream: MediaStream | null) {
@@ -134,8 +134,8 @@ export default function Home() {
           audio: false,
           video: {
             deviceId: { exact: deviceId },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         });
 
@@ -185,7 +185,7 @@ export default function Home() {
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    drawFittedVideo(context, video, settings.a);
+    drawFittedVideo(context, video, settings);
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -204,7 +204,7 @@ export default function Home() {
         <header className="grid gap-4 border-b border-[#242424]/15 pb-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#526056]">
-              Dual webcam portrait tester
+              Webcam landscape tester
             </p>
             <h1 className="mt-1 text-3xl font-semibold sm:text-5xl">Camera A</h1>
           </div>
@@ -260,14 +260,14 @@ function CameraPanel({
       <div className="section-top">
         <div>
           <h2>{title}</h2>
-          <p>{kind === "photo" ? "Portrait photo capture" : "Portrait video preview"}</p>
+          <p>{kind === "photo" ? "Landscape photo capture" : "Landscape video preview"}</p>
         </div>
         <button className="capture-button" onClick={onAction}>
           {actionLabel}
         </button>
       </div>
 
-      <div className="viewfinder-frame" aria-label={`${title} 6 by 19 portrait viewfinder`}>
+      <div className="viewfinder-frame" aria-label={`${title} 16 by 9 landscape viewfinder`}>
         <video
           autoPlay
           muted
@@ -277,7 +277,7 @@ function CameraPanel({
         />
         <div className="viewfinder-overlay">
           <span>{title}</span>
-          <span>6:19</span>
+          <span>16:9</span>
         </div>
       </div>
 
