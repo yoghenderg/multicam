@@ -12,7 +12,8 @@ type SlotSettings = {
 const OUTPUT_WIDTH = 1920;
 const OUTPUT_HEIGHT = 1080;
 const ROTATIONS: SlotSettings["rotation"][] = [0, 90, 180, 270];
-const CAPTURE_COUNTER_KEY = "yg_capture_version";
+const PHOTO_COUNTER_KEY = "yg_photo_capture_version";
+const VIDEO_COUNTER_KEY = "yg_video_capture_version";
 const RECORDING_DURATION_MS = 5000;
 
 function stopStream(stream: MediaStream | null) {
@@ -64,15 +65,16 @@ function createOutputCanvas() {
   return canvas;
 }
 
-function nextCaptureName(extension: "jpg" | "webm") {
+function nextCaptureName(kind: "photo" | "video", extension: "jpg" | "webm") {
   if (typeof window === "undefined") {
-    return `YG_V1.${extension}`;
+    return kind === "photo" ? `YG_V1.${extension}` : `YG_VIDEO_1.${extension}`;
   }
 
-  const currentCount = Number(window.localStorage.getItem(CAPTURE_COUNTER_KEY) || "0");
+  const counterKey = kind === "photo" ? PHOTO_COUNTER_KEY : VIDEO_COUNTER_KEY;
+  const currentCount = Number(window.localStorage.getItem(counterKey) || "0");
   const nextCount = Number.isFinite(currentCount) ? currentCount + 1 : 1;
-  window.localStorage.setItem(CAPTURE_COUNTER_KEY, String(nextCount));
-  return `YG_V${nextCount}.${extension}`;
+  window.localStorage.setItem(counterKey, String(nextCount));
+  return kind === "photo" ? `YG_V${nextCount}.${extension}` : `YG_VIDEO_${nextCount}.${extension}`;
 }
 
 async function saveCapture(blob: Blob, filename: string) {
@@ -86,28 +88,37 @@ async function saveCapture(blob: Blob, filename: string) {
   }).showSaveFilePicker;
 
   if (picker) {
-    const fileHandle = await picker({
-      suggestedName: filename,
-      types: [
-        {
-          description: blob.type.startsWith("video/") ? "WebM video" : "JPEG image",
-          accept: blob.type.startsWith("video/")
-            ? { [blob.type || "video/webm"]: [".webm"] }
-            : { "image/jpeg": [".jpg"] },
-        },
-      ],
-    });
-    const writable = await fileHandle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return "saved";
+    try {
+      const fileHandle = await picker({
+        suggestedName: filename,
+        types: [
+          {
+            description: blob.type.startsWith("video/") ? "WebM video" : "JPEG image",
+            accept: blob.type.startsWith("video/")
+              ? { "video/webm": [".webm"] }
+              : { "image/jpeg": [".jpg"] },
+          },
+        ],
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return "saved";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+    }
   }
 
   const downloadUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = downloadUrl;
   link.download = filename;
+  link.style.display = "none";
+  document.body.append(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(downloadUrl);
   return "downloaded";
 }
@@ -271,7 +282,7 @@ export default function Home() {
     setPhotoUrl(URL.createObjectURL(blob));
 
     try {
-      const filename = nextCaptureName("jpg");
+      const filename = nextCaptureName("photo", "jpg");
       const saveMode = await saveCapture(blob, filename);
       setStatus(
         saveMode === "saved"
@@ -355,7 +366,7 @@ export default function Home() {
 
     try {
       const blob = await finished;
-      const filename = nextCaptureName("webm");
+      const filename = nextCaptureName("video", "webm");
       const saveMode = await saveCapture(blob, filename);
       setStatus(
         saveMode === "saved"
