@@ -191,6 +191,39 @@ button:disabled {
   transform: translateX(-50%) scale(1.03);
 }
 
+.record-button {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 3px solid rgba(255, 245, 245, 0.92);
+  border-radius: 999px;
+  background: rgba(50, 10, 10, 0.34);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.record-button span {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: #d13d34;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.record-button.is-recording span {
+  border-radius: 12px;
+}
+
+.record-button:hover {
+  transform: scale(1.03);
+}
+
 .record-progress {
   position: absolute;
   bottom: 0;

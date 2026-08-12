@@ -13,6 +13,7 @@ const OUTPUT_WIDTH = 1920;
 const OUTPUT_HEIGHT = 1080;
 const ROTATIONS: SlotSettings["rotation"][] = [0, 90, 180, 270];
 const CAPTURE_COUNTER_KEY = "yg_capture_version";
+const RECORDING_DURATION_MS = 5000;
 
 function stopStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
@@ -63,15 +64,15 @@ function createOutputCanvas() {
   return canvas;
 }
 
-function nextCaptureName() {
+function nextCaptureName(extension: "jpg" | "webm") {
   if (typeof window === "undefined") {
-    return "YG_V1.jpg";
+    return `YG_V1.${extension}`;
   }
 
   const currentCount = Number(window.localStorage.getItem(CAPTURE_COUNTER_KEY) || "0");
   const nextCount = Number.isFinite(currentCount) ? currentCount + 1 : 1;
   window.localStorage.setItem(CAPTURE_COUNTER_KEY, String(nextCount));
-  return `YG_V${nextCount}.jpg`;
+  return `YG_V${nextCount}.${extension}`;
 }
 
 async function saveCapture(blob: Blob, filename: string) {
@@ -89,8 +90,10 @@ async function saveCapture(blob: Blob, filename: string) {
       suggestedName: filename,
       types: [
         {
-          description: "JPEG image",
-          accept: { "image/jpeg": [".jpg"] },
+          description: blob.type.startsWith("video/") ? "WebM video" : "JPEG image",
+          accept: blob.type.startsWith("video/")
+            ? { [blob.type || "video/webm"]: [".webm"] }
+            : { "image/jpeg": [".jpg"] },
         },
       ],
     });
@@ -109,6 +112,22 @@ async function saveCapture(blob: Blob, filename: string) {
   return "downloaded";
 }
 
+function getVideoMimeType() {
+  const candidates = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ];
+
+  for (const candidate of candidates) {
+    if (MediaRecorder.isTypeSupported(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
 export default function Home() {
   const videoARef = useRef<HTMLVideoElement>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -121,6 +140,8 @@ export default function Home() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState("Allow camera access to detect the webcam.");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSecondsLeft, setRecordingSecondsLeft] = useState<number | null>(null);
 
   const deviceOptions = useMemo(
     () =>
@@ -250,7 +271,7 @@ export default function Home() {
     setPhotoUrl(URL.createObjectURL(blob));
 
     try {
-      const filename = nextCaptureName();
+      const filename = nextCaptureName("jpg");
       const saveMode = await saveCapture(blob, filename);
       setStatus(
         saveMode === "saved"
@@ -263,6 +284,93 @@ export default function Home() {
         return;
       }
       setStatus("Capture created, but saving failed. Try again.");
+    }
+  }
+
+  async function recordVideo() {
+    const video = videoARef.current;
+    if (!video || !video.videoWidth || isRecording) {
+      if (!video?.videoWidth) {
+        setStatus("Camera A is not ready yet.");
+      }
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setStatus("This browser does not support video recording.");
+      return;
+    }
+
+    const mimeType = getVideoMimeType();
+    const canvas = createOutputCanvas();
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const canvasStream = canvas.captureStream(30);
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(canvasStream, mimeType ? { mimeType } : undefined);
+
+    let animationFrameId = 0;
+    let countdownTimer = 0;
+    const startedAt = performance.now();
+
+    const renderFrame = () => {
+      drawFittedVideo(context, video, settings);
+      animationFrameId = window.requestAnimationFrame(renderFrame);
+    };
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    };
+
+    const finished = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        window.cancelAnimationFrame(animationFrameId);
+        window.clearInterval(countdownTimer);
+        canvasStream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunks, { type: mimeType || "video/webm" });
+        resolve(blob);
+      };
+    });
+
+    setIsRecording(true);
+    setRecordingSecondsLeft(5);
+    setStatus("Recording started.");
+    renderFrame();
+    recorder.start();
+
+    countdownTimer = window.setInterval(() => {
+      const elapsed = performance.now() - startedAt;
+      const secondsLeft = Math.max(0, Math.ceil((RECORDING_DURATION_MS - elapsed) / 1000));
+      setRecordingSecondsLeft(secondsLeft);
+    }, 100);
+
+    window.setTimeout(() => {
+      if (recorder.state !== "inactive") {
+        recorder.stop();
+      }
+    }, RECORDING_DURATION_MS);
+
+    try {
+      const blob = await finished;
+      const filename = nextCaptureName("webm");
+      const saveMode = await saveCapture(blob, filename);
+      setStatus(
+        saveMode === "saved"
+          ? `${filename} recorded. Choose your Desktop in the save window to store it there.`
+          : `${filename} recorded and downloaded.`,
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatus("Video recorded, but saving was cancelled.");
+      } else {
+        setStatus("Video recorded, but saving failed. Try again.");
+      }
+    } finally {
+      setIsRecording(false);
+      setRecordingSecondsLeft(null);
     }
   }
 
@@ -293,9 +401,12 @@ export default function Home() {
         <CameraPanel
           actionLabel={photoUrl ? "Retake photo" : "Capture photo"}
           deviceOptions={deviceOptions}
+          isRecording={isRecording}
           kind="photo"
           onAction={capturePhoto}
+          onRecord={recordVideo}
           onChange={updateSettings}
+          recordingSecondsLeft={recordingSecondsLeft}
           settings={settings}
           videoRef={videoARef}
         />
@@ -307,17 +418,23 @@ export default function Home() {
 function CameraPanel({
   actionLabel,
   deviceOptions,
+  isRecording,
   kind,
   onAction,
+  onRecord,
   onChange,
+  recordingSecondsLeft,
   settings,
   videoRef,
 }: {
   actionLabel: string;
   deviceOptions: { id: string; label: string }[];
+  isRecording: boolean;
   kind: "photo" | "video";
   onAction: () => void;
+  onRecord: () => void;
   onChange: (settings: Partial<SlotSettings>) => void;
+  recordingSecondsLeft: number | null;
   settings: SlotSettings;
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }) {
@@ -345,12 +462,21 @@ function CameraPanel({
         />
         <div className="viewfinder-overlay">
           <span>{title}</span>
-          <span>16:9</span>
+          <span>{isRecording ? `REC ${recordingSecondsLeft ?? 0}s` : "16:9"}</span>
         </div>
         <button
           aria-label={actionLabel}
           className="shutter-button"
           onClick={onAction}
+          type="button"
+        >
+          <span />
+        </button>
+        <button
+          aria-label={isRecording ? "Recording" : "Record 5 second video"}
+          className={`record-button${isRecording ? " is-recording" : ""}`}
+          disabled={isRecording}
+          onClick={onRecord}
           type="button"
         >
           <span />
