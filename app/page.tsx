@@ -6,6 +6,7 @@ type SlotSettings = {
   deviceId: string;
   rotation: 0 | 90 | 180 | 270;
   mirrored: boolean;
+  zoom: number;
 };
 
 const OUTPUT_WIDTH = 1920;
@@ -18,7 +19,7 @@ function stopStream(stream: MediaStream | null) {
 
 function transformStyle(settings: SlotSettings) {
   const mirrorScale = settings.mirrored ? "scaleX(-1)" : "scaleX(1)";
-  return `rotate(${settings.rotation}deg) ${mirrorScale}`;
+  return `rotate(${settings.rotation}deg) ${mirrorScale} scale(${settings.zoom})`;
 }
 
 function drawFittedVideo(
@@ -32,7 +33,8 @@ function drawFittedVideo(
   const rotated = settings.rotation === 90 || settings.rotation === 270;
   const sourceWidth = rotated ? videoHeight : videoWidth;
   const sourceHeight = rotated ? videoWidth : videoHeight;
-  const scale = Math.max(canvas.width / sourceWidth, canvas.height / sourceHeight);
+  const scale =
+    Math.max(canvas.width / sourceWidth, canvas.height / sourceHeight) * settings.zoom;
 
   context.save();
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -67,6 +69,7 @@ export default function Home() {
     deviceId: "",
     rotation: 0,
     mirrored: false,
+    zoom: 1,
   });
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState("Allow camera access to detect the webcam.");
@@ -335,6 +338,21 @@ function CameraPanel({
             </button>
           </div>
         </div>
+
+        <label className="slider-group">
+          <span>Zoom</span>
+          <div className="slider-row">
+            <input
+              max="3"
+              min="1"
+              onChange={(event) => onChange({ zoom: Number(event.target.value) })}
+              step="0.1"
+              type="range"
+              value={settings.zoom}
+            />
+            <strong>{Math.round(settings.zoom * 100)}%</strong>
+          </div>
+        </label>
       </div>
     </section>
   );
