@@ -18,7 +18,7 @@ function stopStream(stream: MediaStream | null) {
 
 function transformStyle(settings: SlotSettings) {
   const mirrorScale = settings.mirrored ? "scaleX(-1)" : "scaleX(1)";
-  return `translate(-50%, -50%) rotate(${settings.rotation}deg) ${mirrorScale}`;
+  return `rotate(${settings.rotation}deg) ${mirrorScale}`;
 }
 
 function drawFittedVideo(
