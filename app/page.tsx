@@ -12,6 +12,7 @@ type SlotSettings = {
 const OUTPUT_WIDTH = 1920;
 const OUTPUT_HEIGHT = 1080;
 const ROTATIONS: SlotSettings["rotation"][] = [0, 90, 180, 270];
+const CAPTURE_COUNTER_KEY = "yg_capture_version";
 
 function stopStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
@@ -60,6 +61,52 @@ function createOutputCanvas() {
   canvas.width = OUTPUT_WIDTH;
   canvas.height = OUTPUT_HEIGHT;
   return canvas;
+}
+
+function nextCaptureName() {
+  if (typeof window === "undefined") {
+    return "YG_V1.jpg";
+  }
+
+  const currentCount = Number(window.localStorage.getItem(CAPTURE_COUNTER_KEY) || "0");
+  const nextCount = Number.isFinite(currentCount) ? currentCount + 1 : 1;
+  window.localStorage.setItem(CAPTURE_COUNTER_KEY, String(nextCount));
+  return `YG_V${nextCount}.jpg`;
+}
+
+async function saveCapture(blob: Blob, filename: string) {
+  const picker = (window as Window & {
+    showSaveFilePicker?: (options: {
+      suggestedName: string;
+      types: { description: string; accept: Record<string, string[]> }[];
+    }) => Promise<{
+      createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
+    }>;
+  }).showSaveFilePicker;
+
+  if (picker) {
+    const fileHandle = await picker({
+      suggestedName: filename,
+      types: [
+        {
+          description: "JPEG image",
+          accept: { "image/jpeg": [".jpg"] },
+        },
+      ],
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return "saved";
+  }
+
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(downloadUrl);
+  return "downloaded";
 }
 
 export default function Home() {
@@ -177,7 +224,7 @@ export default function Home() {
     setSettings((current) => ({ ...current, ...nextSettings }));
   }
 
-  function capturePhoto() {
+  async function capturePhoto() {
     const video = videoARef.current;
     if (!video || !video.videoWidth) {
       setStatus("Camera A is not ready yet.");
@@ -189,16 +236,34 @@ export default function Home() {
     if (!context) return;
 
     drawFittedVideo(context, video, settings);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        if (photoUrl) URL.revokeObjectURL(photoUrl);
-        setPhotoUrl(URL.createObjectURL(blob));
-        setStatus("Photo captured. Record Camera B when you are ready.");
-      },
-      "image/jpeg",
-      0.95,
-    );
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.95);
+    });
+
+    if (!blob) {
+      setStatus("The capture could not be created. Try again.");
+      return;
+    }
+
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    setPhotoUrl(URL.createObjectURL(blob));
+
+    try {
+      const filename = nextCaptureName();
+      const saveMode = await saveCapture(blob, filename);
+      setStatus(
+        saveMode === "saved"
+          ? `${filename} captured. Choose your Desktop in the save window to store it there.`
+          : `${filename} captured and downloaded.`,
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatus("Capture created, but saving was cancelled.");
+        return;
+      }
+      setStatus("Capture created, but saving failed. Try again.");
+    }
   }
 
   return (
@@ -282,6 +347,14 @@ function CameraPanel({
           <span>{title}</span>
           <span>16:9</span>
         </div>
+        <button
+          aria-label={actionLabel}
+          className="shutter-button"
+          onClick={onAction}
+          type="button"
+        >
+          <span />
+        </button>
       </div>
 
       <div className="controls-grid">

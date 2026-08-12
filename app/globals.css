@@ -161,6 +161,36 @@ button:disabled {
   padding: 5px 8px;
 }
 
+.shutter-button {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 3px solid rgba(255, 250, 240, 0.92);
+  border-radius: 999px;
+  background: rgba(12, 16, 15, 0.28);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+}
+
+.shutter-button span {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: #fffaf0;
+  box-shadow: inset 0 0 0 1px rgba(23, 60, 49, 0.12);
+}
+
+.shutter-button:hover {
+  transform: translateX(-50%) scale(1.03);
+}
+
 .record-progress {
   position: absolute;
   bottom: 0;
