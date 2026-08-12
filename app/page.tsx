@@ -344,13 +344,13 @@ function CameraPanel({
           <div className="slider-row">
             <input
               max="3"
-              min="1"
+              min="0.5"
               onChange={(event) => onChange({ zoom: Number(event.target.value) })}
               step="0.1"
               type="range"
               value={settings.zoom}
             />
-            <strong>{Math.round(settings.zoom * 100)}%</strong>
+            <strong>{settings.zoom.toFixed(1)}x</strong>
           </div>
         </label>
       </div>
